@@ -3,7 +3,9 @@ package top.itning.generic.service.core.service;
 import com.alibaba.dubbo.rpc.RpcContext;
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
+import io.netty.util.internal.StringUtil;
 import lombok.extern.slf4j.Slf4j;
+import org.apache.dubbo.common.utils.StringUtils;
 import org.apache.dubbo.config.ApplicationConfig;
 import org.apache.dubbo.config.ReferenceConfig;
 import org.apache.dubbo.remoting.Constants;
@@ -17,6 +19,7 @@ import top.itning.generic.service.core.bo.DubboGenericRequestBO;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.ThreadLocalRandom;
 
 /**
@@ -75,9 +78,32 @@ public class DubboGenericInvokeTask implements Runnable {
             List<Object> argList = new ArrayList<>();
             if (!CollectionUtils.isEmpty(dubboGenericRequestBO.getParams())) {
                 dubboGenericRequestBO.getParams().forEach(item -> {
-                    String key = item.keySet().toArray(new String[]{})[0];
-                    parameterTypeList.add(key);
-                    argList.add(item.get(key));
+                    // 完整的类型，可能包含具体泛型的具体类型
+                    String fullType = item.keySet().toArray(new String[]{})[0];
+
+                    // 将外部类型和内部类型（即泛化调用-泛型的具体类型，如BaseReqDto<Xxx>的Xxx的具体类型=com.Xxx）解析出来
+                    // 1、外部类型
+                    String outerType = fullType;
+                    // 2、内部类型
+                    String innerType = StringUtil.EMPTY_STRING;
+                    if (fullType.contains("<") && fullType.contains(">")) {
+                        int indexOfBegin = fullType.indexOf("<");
+                        int indexOfEnd = fullType.indexOf(">");
+                        outerType = fullType.substring(0, indexOfBegin);
+                        innerType = fullType.substring(indexOfBegin + 1, indexOfEnd);
+                    }
+
+                    // 设置外部类型
+                    parameterTypeList.add(outerType);
+
+                    // 设置内部类型
+                    Map outerMap = (Map) item.get(fullType);
+                    Map innerMap = (Map) outerMap.get("param");
+                    if (StringUtils.isNotEmpty(innerType)) {
+                        innerMap.put("class", innerType);
+                    }
+
+                    argList.add(outerMap);
                 });
             }
 

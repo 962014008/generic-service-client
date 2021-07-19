@@ -120,3 +120,6 @@ generic-service-support-nacos.nacos-list.nacos-C=127.0.0.1:8868
 
 ![dubboURLjiexi](https://raw.githubusercontent.com/itning/generic-service-client/master/pic/dubboURLjiexi.jpg)
 
+
+待解决问题：
+1、错误：Http failure response for http://127.0.0.1:8868/jar/upload: 504 Gateway Timeout
