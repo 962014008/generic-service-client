@@ -96,14 +96,20 @@ public class DubboGenericInvokeTask implements Runnable {
                     // 设置外部类型
                     parameterTypeList.add(outerType);
 
-                    // 设置内部类型
-                    Map outerMap = (Map) item.get(fullType);
-                    Map innerMap = (Map) outerMap.get("param");
-                    if (StringUtils.isNotEmpty(innerType)) {
-                        innerMap.put("class", innerType);
+                    // 设置内部类型和argList参数
+                    if (!fullType.contains("java.lang")) {
+                        Map outerMap = (Map) item.get(fullType);
+                        Map innerMap = (Map) outerMap.get("param");
+                        if (StringUtils.isNotEmpty(innerType)) {
+                            innerMap.put("class", innerType);
+                        }
+                        argList.add(outerMap);
                     }
-
-                    argList.add(outerMap);
+                    // java.lang的原生类型，只设置外部类型的argList参数
+                    else {
+                        Object outerArg = item.get(outerType);
+                        argList.add(outerArg);
+                    }
                 });
             }
 
