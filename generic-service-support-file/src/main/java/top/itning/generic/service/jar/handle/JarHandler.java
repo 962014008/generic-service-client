@@ -324,66 +324,70 @@ public class JarHandler implements JarHandlerInterface {
      * @throws ClassNotFoundException 类没找到
      */
     private void getOneParamMapForObject(ClassLoader classLoader, Class<?> paramClass, Type genericType, String parameterName, Map<String, Object> result) throws IntrospectionException, ClassNotFoundException {
-        if (Serializable.class.isAssignableFrom(paramClass)) {
-            BeanInfo beanInfo = Introspector.getBeanInfo(paramClass, Object.class);
-            PropertyDescriptor[] propertyDescriptors = beanInfo.getPropertyDescriptors();
-            Map<String, Object> map = new HashMap<>();
-            // 泛型信息：T->TYPE
-            Map<String, Type> typeMap = new HashMap<>();
-            // 对象上有泛型
-            if (genericType instanceof ParameterizedType) {
-                Type[] actualTypeArguments = ((ParameterizedType) genericType).getActualTypeArguments();
-                int i = 0;
-                for (TypeVariable<?> item : paramClass.getTypeParameters()) {
-                    Type actualTypeArgument = actualTypeArguments[i++];
-                    // 上限
-                    if (actualTypeArgument instanceof TypeVariable) {
-                        TypeVariable<?> typeVariable = (TypeVariable<?>) actualTypeArgument;
-                        Type type = getBoundType(typeVariable);
-                        if (null != type) {
-                            actualTypeArgument = type;
+        try {
+            if (Serializable.class.isAssignableFrom(paramClass)) {
+                BeanInfo beanInfo = Introspector.getBeanInfo(paramClass, Object.class);
+                PropertyDescriptor[] propertyDescriptors = beanInfo.getPropertyDescriptors();
+                Map<String, Object> map = new HashMap<>();
+                // 泛型信息：T->TYPE
+                Map<String, Type> typeMap = new HashMap<>();
+                // 对象上有泛型
+                if (genericType instanceof ParameterizedType) {
+                    Type[] actualTypeArguments = ((ParameterizedType) genericType).getActualTypeArguments();
+                    int i = 0;
+                    for (TypeVariable<?> item : paramClass.getTypeParameters()) {
+                        Type actualTypeArgument = actualTypeArguments[i++];
+                        // 上限
+                        if (actualTypeArgument instanceof TypeVariable) {
+                            TypeVariable<?> typeVariable = (TypeVariable<?>) actualTypeArgument;
+                            Type type = getBoundType(typeVariable);
+                            if (null != type) {
+                                actualTypeArgument = type;
+                            }
+                        }
+                        if ("?".equals(actualTypeArgument.getTypeName())) {
+                            typeMap.put(item.getName(), new Type() {
+                                @Override
+                                public String getTypeName() {
+                                    return Object.class.getTypeName();
+                                }
+                            });
+                        } else {
+                            typeMap.put(item.getName(), actualTypeArgument);
                         }
                     }
-                    if ("?".equals(actualTypeArgument.getTypeName())) {
-                        typeMap.put(item.getName(), new Type() {
-                            @Override
-                            public String getTypeName() {
-                                return Object.class.getTypeName();
-                            }
-                        });
-                    } else {
-                        typeMap.put(item.getName(), actualTypeArgument);
+                }
+                for (PropertyDescriptor p : propertyDescriptors) {
+                    if (null == p.getWriteMethod()) {
+                        continue;
                     }
-                }
-            }
-            for (PropertyDescriptor p : propertyDescriptors) {
-                if (null == p.getWriteMethod()) {
-                    continue;
-                }
-                // 每一个参数名
-                String name = p.getName();
-                Class<?> propertyType = p.getPropertyType();
-                Type type = null;
-                try {
-                    type = paramClass.getDeclaredField(name).getGenericType();
-                } catch (NoSuchFieldException | SecurityException e) {
-                    log.warn("获取字段失败，可能是没有这个字段:{}", e.getMessage());
-                }
-                if (null != type) {
-                    Type t = typeMap.get(type.getTypeName());
-                    if (t instanceof ParameterizedType) {
-                        type = t;
-                        propertyType = tryLoadClass(classLoader, ((ParameterizedType) t).getRawType().getTypeName()).orElse(Object.class);
-                    } else if (null != t) {
-                        propertyType = tryLoadClass(classLoader, t.getTypeName()).orElse(Object.class);
+                    // 每一个参数名
+                    String name = p.getName();
+                    Class<?> propertyType = p.getPropertyType();
+                    Type type = null;
+                    try {
+                        type = paramClass.getDeclaredField(name).getGenericType();
+                    } catch (NoSuchFieldException | SecurityException e) {
+                        log.warn("获取字段失败，可能是没有这个字段:{}", e.getMessage());
                     }
+                    if (null != type) {
+                        Type t = typeMap.get(type.getTypeName());
+                        if (t instanceof ParameterizedType) {
+                            type = t;
+                            propertyType = tryLoadClass(classLoader, ((ParameterizedType) t).getRawType().getTypeName()).orElse(Object.class);
+                        } else if (null != t) {
+                            propertyType = tryLoadClass(classLoader, t.getTypeName()).orElse(Object.class);
+                        }
+                    }
+                    getOneParamMap(classLoader, propertyType, type, name).forEach(map::put);
                 }
-                getOneParamMap(classLoader, propertyType, type, name).forEach(map::put);
+                result.put(parameterName, map);
+            } else {
+                result.put(parameterName, Collections.emptyMap());
+                log.warn("略过{}，没有实现序列化", paramClass.getName());
             }
-            result.put(parameterName, map);
-        } else {
-            result.put(parameterName, Collections.emptyMap());
-            log.warn("略过{}，没有实现序列化", paramClass.getName());
+        } catch (Error e) {
+            log.error("getOneParamMapForObject Error", e);
         }
     }
 

@@ -97,7 +97,7 @@ public class DubboGenericInvokeTask implements Runnable {
                     parameterTypeList.add(outerType);
 
                     // 设置内部类型和argList参数
-                    if (!fullType.contains("java.lang")) {
+                    if (fullType.contains("<") && fullType.contains(">")) {
                         Map outerMap = (Map) item.get(fullType);
                         Map innerMap = (Map) outerMap.get("param");
                         if (StringUtils.isNotEmpty(innerType)) {
